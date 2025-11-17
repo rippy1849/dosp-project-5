@@ -528,7 +528,6 @@ fn handle_message(state: State, msg: Message) -> actor.Next(State, Message) {
     CreateSubReddit(subreddit_name) -> {
       let subreddit_user_db =
         dict.insert(state.subreddit_user_db, subreddit_name, [])
-      //TODO What if subreddit already exists?
 
       let result = dict.get(subreddit_user_db, subreddit_name)
 
@@ -639,7 +638,6 @@ fn handle_message(state: State, msg: Message) -> actor.Next(State, Message) {
           parent_comment_id,
           username,
         ))
-      echo subreddit_comment_db
 
       actor.continue(State(
         #(current_comment_id, current_dm_id),
@@ -997,7 +995,7 @@ pub fn main() {
 
   logging.configure()
   logging.set_level(logging.Debug)
-
+  //TODO
   let not_found =
     response.new(404)
     |> response.set_body(mist.Bytes(bytes_tree.new()))
@@ -1053,7 +1051,7 @@ pub fn main() {
       }
     }
     |> mist.new
-    |> mist.bind("localhost")
+    |> mist.bind("0.0.0.0")
     |> mist.with_ipv6
     |> mist.port(8000)
     |> mist.start
@@ -1184,7 +1182,7 @@ fn create_account(
   process.send(engine_handle, RegisterAccount(username, password))
   // echo body_string
   // let fields = mist.parse_form(body)
-
+  io.println("Got GET Request /createAccount")
   // // Extract "message" field if it exists
   // let message =
   //   mist.form_field("message", fields)
@@ -1227,6 +1225,8 @@ fn login(
   let ip = nth_string(ip_field_split, 1)
 
   // echo username
+
+  io.println("Got GET Request /login")
 
   let login_handle = process.new_subject()
   process.send(engine_handle, Login(username, password, login_handle))
@@ -1351,7 +1351,7 @@ fn get_subreddits(
     Error(_) -> default
   }
   let keys = dict.keys(subreddit_db)
-
+  io.println("Got GET Request /getSubreddits")
   // echo keys
 
   let links =
@@ -1400,6 +1400,7 @@ fn create_subreddit_page_query(
   // echo fields
   // echo username
 
+  io.println("Got GET Request /createSubreddit")
   let create_subreddit_page = "<html>
        <body>
          <h1>Create Subreddit</h1>
@@ -1430,7 +1431,7 @@ fn create_dm(
     option.None -> ""
   }
 
-  echo query
+  //echo query
 
   let assert Ok(body) = mist.read_body(req, 10_000)
 
@@ -1450,15 +1451,13 @@ fn create_dm(
 
   let content = nth_string(body_fields, 1)
 
-  echo username_from
-  echo username_to
-  echo content
-
   process.send(engine_handle, EngineDm(username_from, username_to, content, 0))
   // echo body_string
   // echo query
   // echo fields
   // echo username
+
+  io.println("Got POST Request /addDirectMessage/" <> username_from)
 
   response.new(200)
   |> response.prepend_header("my-value", "abc")
@@ -1486,7 +1485,7 @@ fn view_subreddit(
   let username_poster = nth_string(string.split(nth_string(fields, 1), "="), 1)
 
   // echo username_poster
-
+  io.println("Got GET Request /viewSubreddit/" <> subreddit_name)
   process.send(engine_handle, JoinSubReddit(subreddit_name, username_poster))
 
   // echo subreddit_name
@@ -1578,7 +1577,7 @@ fn view_dms(
   }
 
   // echo user_list
-
+  io.println("Got GET Request /viewDirectMessages/" <> username)
   let a_list =
     list.map(user_list, fn(user) {
       "<div> <a href='/viewDirectMessage?usernameto="
@@ -1615,8 +1614,7 @@ fn view_dm(
   let username_to = nth_string(string.split(nth_string(fields, 0), "="), 1)
   let username_from = nth_string(string.split(nth_string(fields, 1), "="), 1)
 
-  echo username_to
-  echo username_from
+  io.println("Got GET Request /viewDirectMessage/" <> username_from)
 
   // echo query
   let main_handle = process.new_subject()
@@ -1650,7 +1648,6 @@ fn view_dm(
     Error(_) -> []
   }
 
-  //TODO
   let result = dict.get(dm_db, username_to)
 
   let user_to_db = case result {
@@ -1712,7 +1709,7 @@ fn view_dm(
     <> to_a_list
     <> view_dm_script
     <> body_bottom
-  //TODO 
+
   // let result = dict.get(dm_db, username_to)
 
   // let user_from_db = case result {
@@ -1754,10 +1751,7 @@ fn home(
 
   // process.send(engine_handle,GetSubredditsSubscribed(main_handle,))
 
-  // echo query
-
   let fields = string.split(query, "=")
-  //echo fields
   let username = nth_string(fields, 1)
 
   process.send(engine_handle, GetSubredditsSubscribed(main_handle, username))
@@ -1769,8 +1763,9 @@ fn home(
     Error(_) -> []
   }
 
+  io.println("Got GET Request /home")
+
   let main_handle = process.new_subject()
-  // echo subreddits
   process.send(engine_handle, GetKarma(main_handle, username))
 
   let result = process.receive(main_handle, 100_000)
@@ -1791,8 +1786,6 @@ fn home(
       <> "</a>\n"
     })
   let a_list = string.concat(a_list)
-
-  echo a_list
 
   let home_page =
     body_top
@@ -1836,22 +1829,20 @@ fn upvote(
     option.None -> ""
   }
 
-  echo query
-
   let fields = string.split(query, "&")
 
   let id = nth_string(string.split(nth_string(fields, 0), "="), 1)
   let subreddit_name = nth_string(string.split(nth_string(fields, 1), "="), 1)
 
-  // echo id
   let result = int.base_parse(id, 10)
 
   let id = case result {
     Ok(result) -> result
     Error(_) -> 0
   }
-
-  // echo subreddit_name
+  io.println(
+    "Got POST Request /upvote/" <> subreddit_name <> "/" <> int.to_string(id),
+  )
 
   //process.send(engine_handle, JoinSubReddit(subreddit_name, username))
 
@@ -1875,22 +1866,20 @@ fn downvote(
     option.None -> ""
   }
 
-  // echo query
-
   let fields = string.split(query, "&")
 
   let id = nth_string(string.split(nth_string(fields, 0), "="), 1)
   let subreddit_name = nth_string(string.split(nth_string(fields, 1), "="), 1)
 
-  // echo id
   let result = int.base_parse(id, 10)
 
   let id = case result {
     Ok(result) -> result
     Error(_) -> 0
   }
-
-  // echo subreddit_name
+  io.println(
+    "Got POST Request /downvote/" <> subreddit_name <> "/" <> int.to_string(id),
+  )
 
   //process.send(engine_handle, JoinSubReddit(subreddit_name, username))
 
@@ -1917,7 +1906,6 @@ fn create_comment(
   }
 
   let fields = string.split(body_string, "&")
-  //echo fields
 
   let parent_id = nth_string(string.split(nth_string(fields, 0), "="), 1)
   let username = nth_string(string.split(nth_string(fields, 1), "="), 1)
@@ -1931,6 +1919,12 @@ fn create_comment(
     Error(_) -> 0
   }
 
+  io.println(
+    "Got POST Request /addComment/"
+    <> subreddit_name
+    <> "/"
+    <> int.to_string(parent_id),
+  )
   process.send(
     engine_handle,
     Comment(subreddit_name, username, parent_id, comment),
@@ -1957,7 +1951,6 @@ fn make_post(
   }
 
   let fields = string.split(body_string, "&")
-  echo fields
 
   let subreddit_name = nth_string(string.split(nth_string(fields, 0), "="), 1)
   let username = nth_string(string.split(nth_string(fields, 1), "="), 1)
@@ -1965,6 +1958,7 @@ fn make_post(
 
   process.send(engine_handle, Post(subreddit_name, username, post_text))
 
+  io.println("Got POST Request /makePost/" <> subreddit_name)
   // let result = int.base_parse(parent_id, 10)
 
   // let parent_id = case result {
@@ -1991,7 +1985,6 @@ fn leave_subreddit(
   }
 
   let fields = string.split(query, "&")
-  echo fields
 
   let username = nth_string(string.split(nth_string(fields, 0), "="), 1)
   let subreddit_name = nth_string(string.split(nth_string(fields, 1), "="), 1)
@@ -2001,9 +1994,11 @@ fn leave_subreddit(
          <h1>Left Subreddit 
         " <> subreddit_name <> "
         </h1>
+        <a href='/home?username=" <> username <> "'>Home</a>
        </body>
      </html>"
 
+  io.println("Got GET Request /leaveSubreddit/" <> subreddit_name)
   process.send(engine_handle, LeaveSubReddit(subreddit_name, username))
   // let result = bit_array.to_string(body.body)
 
@@ -2013,7 +2008,6 @@ fn leave_subreddit(
   // }
 
   // let fields = string.split(body_string, "&")
-  // echo fields
 
   // let subreddit_name = nth_string(string.split(nth_string(fields, 0), "="), 1)
   // let username = nth_string(string.split(nth_string(fields, 1), "="), 1)
@@ -2195,7 +2189,7 @@ pub fn add_dm2(
 ) -> dict.Dict(String, dict.Dict(String, List(#(String, String, Int, Int)))) {
   let message = #(from_username, content, current_dm_id, parent_dm_id)
 
-  echo message
+  // echo message
   // Get the sender's message dict (or an empty one)
   let from_map =
     dict.get(user_dm_db, from_username)
